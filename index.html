@@ -248,7 +248,7 @@ function play(acts, noYou) {   // noYou：第八版，没有谁领过它们，�
         } else say(`一只离了队，往${place}飞下去，一群在高处盘着等。`);
         if (s === '枪') {
           say(landWords(place, y, s));
-          if (rnd() < 0.5) {
+          if ((selfGo ? rng(y * 31 + k)() : rnd()) < 0.5) {   // 第二个 07:39：它们自己走那几年按年按程定，跟收尾一样；你领着那几年照旧
             if (how === '自己') { youAlive = false; big--; say('你没飞回来。'); ev.push(`你去看${place}，挨了枪`); }
             else { if (small > 0) small--; say('它没飞回来。'); ev.push(`派${who}看${place}，没回来`); }
           } else {
