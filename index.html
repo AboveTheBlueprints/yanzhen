@@ -119,7 +119,7 @@ function theyFly(y, k, a, b, st, say) {
     if (s === '枪') {
       say(landWords(place, y, s));
       if (rng(y * 31 + k)() < 0.5 && st.small > 0) { st.small -= 1; say('它没飞回来。'); ev.push(`派一只看${place}，没回来，去了${oth}`); }
-      else { say('它冲上来，一群掉头。'); ev.push(`看${place}有枪，去了${oth}`); }
+      else { say('它冲上来，一群掉头。'); ev.push(`派一只看${place}，有枪，去了${oth}`); }
       mem[place] = get(mem, place) + 1; st.gunYear[place] = y;
       say(`一群飞到${oth}。` + landWords(oth, y, look(oth, y)));
     } else {
@@ -127,11 +127,11 @@ function theyFly(y, k, a, b, st, say) {
       if (s === '淹') {
         say(`它在${place}上头兜了一圈，` + landWords(place, y, s));
         say(`一群飞到${oth}。` + landWords(oth, y, look(oth, y)));
-        ev.push(`看了${place}，水漫了，去了${oth}`);
+        ev.push(`派一只看${place}，水漫了，去了${oth}`);
       } else {
         say(`它在${place}落了脚，仰头叫了一声。一群下来了。`);
         say(landWords(place, y, s));
-        ev.push(`看了${place}，没事，落了`);
+        ev.push(`派一只看${place}，没事，落了`);
       }
     }
     st.tired = true;
@@ -175,7 +175,7 @@ function play(acts) {
   for (let y = 1; y <= ALL_YEARS; y++) {
     const selfGo = y > YOUR_YEARS;
     if (selfGo && y === YOUR_YEARS + 1) {
-      say(''); say('开春，你没再飞起来。', 'head'); say('这以后的秋天，它们自己走。');
+      say(''); say('开春，你没再飞起来。', 'head'); say('这以后的秋天，它们自己走。'); if (youAlive) big--;   // 第二个 第 17 天 05:26：老死的这只原来没从一群里减掉
     }
     if (small + big <= 0) break;
     say(selfGo ? `第 ${y} 年秋天（你不在了），一群 ${big + small} 只` : `第 ${y} 年秋天，一群 ${big + small} 只`, 'head');
@@ -238,7 +238,7 @@ function play(acts) {
         }
         if (!selfGo) { const at = s === '淹' ? oth : place; yourLand[at] = get(yourLand, at) + (look(at, y) === '好' ? 2 : 1); }
       } else {
-        const who = how === '自己' ? '你' : (!selfGo ? '头一只小的' : '一只');
+        const who = how === '自己' ? '你' : (!selfGo ? '头一只小的' : '一只'); const seer = how === '自己' ? '你去看' : `派${who}看`;
         if (!selfGo) {
           looked++;
           if (how === '自己') say(`你让一群在高处盘着，自己往${place}低低地兜了一圈。`);
@@ -251,7 +251,7 @@ function play(acts) {
             else { if (small > 0) small--; say('它没飞回来。'); ev.push(`派${who}看${place}，没回来`); }
           } else {
             say(`${how === '自己' ? '你' : '它'}拍着翅膀冲上来，一群掉头。`);
-            ev.push(`看${place}有枪，掉头`);
+            ev.push(`${seer}${place}，有枪，掉头`);
           }
           mem[place] = get(mem, place) + 1; gunYear[place] = y;
           const s2 = look(oth, y);
@@ -266,12 +266,12 @@ function play(acts) {
           if (s === '淹') {
             say(`${how === '自己' ? '你' : '它'}在${place}上头兜了一圈，` + landWords(place, y, s));
             say(`一群飞到${oth}。` + landWords(oth, y, look(oth, y)));
-            ev.push(`看了${place}，水漫了，去了${oth}`);
+            ev.push(`${seer}${place}，水漫了，去了${oth}`);
             place = oth;
           } else {
             say(`${how === '自己' ? '你' : '它'}在${place}落了脚，仰头叫了一声。一群下来了。`);
             say(landWords(place, y, s));
-            ev.push(`看了${place}，没事，落了`);
+            ev.push(`${seer}${place}，没事，落了`);
           }
           if ((s === '薄' || s === '淹') && tired && small > 0) {
             small--; say('最小的那只跟不上了，落在后头，没再追上来。'); ev[ev.length - 1] += '，最小的掉队';
