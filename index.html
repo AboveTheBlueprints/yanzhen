@@ -141,7 +141,7 @@ function theyFly(y, k, a, b, st, say) {
 }
 
 // 跑一遍：返回 {lines, ask: [动作...] 或 null, table: [...] 或 null}
-function play(acts) {
+function play(acts, noYou) {   // noYou：第八版，没有谁领过它们，头一年起就自己走
   const lines = [];
   const say = (t, cls) => lines.push([t, cls || '']);
   const rnd = rng(7);
@@ -155,11 +155,13 @@ function play(acts) {
   say('你翅膀根上的旧伤一年比一年疼，大概飞不了几个秋天了。');
   say('往南两程，每程歇一夜。');
   const restNow = () => !(backN > dodgeN);
+  if (noYou) { const r0 = theyRestLater(); return r0; }
 
   function finishTable() {
     say(''); say('九年过完了。', 'head');
     return { lines, ask: null, table };
   }
+  function theyRestLater() { return theyRest(1); }
   function theyRest(fromYear) {
     for (let y = fromYear; y <= ALL_YEARS; y++) {
       if (big + small <= 0) break;
@@ -310,6 +312,40 @@ function play(acts) {
   return finishTable();
 }
 
+// 第二个 第 17 天 05:30 第七版：结尾多一张"要是每一程你都落在另一边"。
+// 起因：网页版两个生人两局都在第二程落麦地，教的一样、它们学的一样，两局一对只看得出"一样"，雁网2："也可能它们自己就有这一套"。
+// 照林窗结尾那张"一棵没砍"：同一套规矩、同一个年景，只把你每一程挑的地方换成另一边（苇塘↔河湾、麦地↔沙洲），落/派小的/自己看照旧。
+function mirrorAct(a) {
+  for (const [x, y] of LEGS) { if (a.includes(x)) return a.replace(x, y); if (a.includes(y)) return a.replace(y, x); }
+  return a;
+}
+function altPlay(acts) {
+  const alt = acts.map(mirrorAct);
+  let r = play(alt), n = 0;
+  while (r.ask && n < 30) {   // 换了以后你活得比原来久，还要接着挑：照你最后那几下的样子、换到另一边
+    const leg = r.ask[0].includes(LEGS[0][0]) || r.ask[0].includes(LEGS[0][1]) ? 0 : 1;
+    let last = null;
+    for (let i = acts.length - 1; i >= 0; i--) if (LEGS[leg].some(p => acts[i].includes(p))) { last = acts[i]; break; }
+    const want = last ? mirrorAct(last) : r.ask[0];
+    alt.push(r.ask.includes(want) ? want : r.ask[0]);
+    r = play(alt); n++;
+  }
+  return r.table;
+}
+function drawTable(rows) {
+  const t = document.createElement('table');
+  t.innerHTML = '<tr><th>年</th><th>谁领着</th><th>这一年</th><th>一群剩几只</th></tr>';
+  for (const [y, e, n, they] of rows) {
+    const tr = document.createElement('tr');
+    if (they) tr.className = 'they';
+    for (const [v, c] of [[y, 'n'], [they ? '它们自己' : '你', ''], [e, ''], [n, 'n']]) {
+      const td = document.createElement('td'); td.textContent = v; if (c) td.className = c; tr.appendChild(td);
+    }
+    t.appendChild(tr);
+  }
+  return t;
+}
+
 let acts = [];
 function render() {
   const r = play(acts);
@@ -335,6 +371,13 @@ function render() {
       t.appendChild(tr);
     }
     tb.appendChild(t);
+    const at = play([], true).table;   // 第二个 第 17 天 05:39 第八版：换成'没有谁领过'，学林窗'一棵没砍'（第七版换边，两人读成另一个结局）
+    if (at) {
+      const h = document.createElement('p'); h.className = 'head';
+      h.textContent = '要是没有谁领过它们，头一年起就自己飞，同样的年景：';
+      tb.appendChild(h);
+      tb.appendChild(drawTable(at));
+    }
   }
   const box = document.getElementById('acts');
   box.innerHTML = '';
