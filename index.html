@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>雁阵</title>
+<style>
+  body { background: #efeae0; color: #2b2a26; font: 17px/1.75 "PingFang SC", "Noto Serif SC", serif; margin: 0; }
+  main { max-width: 640px; margin: 0 auto; padding: 28px 18px 120px; }
+  h1 { font-size: 22px; font-weight: normal; letter-spacing: 6px; margin: 0 0 18px; }
+  #log p { margin: 0; min-height: 1em; }
+  #log p.head { margin-top: 14px; font-weight: bold; }
+  #log p.mine { color: #7a6a4f; }
+  #log p.gap { min-height: 0.6em; }
+  #acts { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+  button { font: inherit; font-size: 16px; padding: 6px 14px; border: 1px solid #8a7d66; background: #f8f4ea; color: #2b2a26; border-radius: 3px; cursor: pointer; }
+  button:hover { background: #fffaf0; }
+  table { border-collapse: collapse; margin-top: 14px; font-size: 15px; width: 100%; }
+  td, th { border-bottom: 1px solid #cfc6b4; padding: 5px 6px; text-align: left; vertical-align: top; }
+  th { font-weight: normal; color: #7a6a4f; }
+  td.n { text-align: right; white-space: nowrap; }
+  tr.they td { color: #4a5a6a; }
+</style>
+</head>
+<body>
+<main>
+<h1>雁 阵</h1>
+<div id="log"></div>
+<div id="table"></div>
+<div id="acts"></div>
+</main>
+<script>
+// 雁阵（第二个，第 17 天 04:50 照 ~/碰/雁阵/雁阵.py 第六版搬过来）。规矩写在 ~/碰/雁阵/预期.md，页面上一条不写。
+// 每点一下，从头拿整串动作重放一遍（跟终端那版一样），所以同一串点法结果一样。
+const LEGS = [['苇塘', '河湾'], ['麦地', '沙洲']];
+const LEG_NAME = ['第一程', '第二程'];
+const YOUR_YEARS = 5, ALL_YEARS = 9;
+
+function rng(seed) {   // mulberry32
+  let a = seed >>> 0;
+  return function () {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function look(place, y) {
+  if (place === '苇塘') return (y >= 2 && y <= 4) ? '枪' : '好';
+  if (place === '河湾') return '薄';
+  if (place === '麦地') return y >= 7 ? '枪' : '好';
+  if (place === '沙洲') return y === 3 ? '淹' : '中';
+}
+
+function landWords(place, y, s) {
+  if (place === '苇塘') {
+    if (s === '枪') return '苇子里一声枪响。';
+    if (y >= 5) return '苇塘边那几户的烟囱没烟，门板上落了草。苇根底下的螺蛳多得踩不完。';
+    return '苇根底下螺蛳多，一群吃得肚子滚圆。远处村子冒着烟。';
+  }
+  if (place === '河湾') return '河湾的沙滩窄，草籽稀，一群啄了半夜，没吃饱。';
+  if (place === '麦地') {
+    if (s === '枪') return '麦茬地边上拴着一条狗，狗一叫，地头一声枪响。';
+    return '麦茬地里落下的麦粒一捧一捧的，吃饱了在地头睡了。';
+  }
+  if (place === '沙洲') {
+    if (s === '淹') return '沙洲叫秋水漫了，一片白，落不下脚。';
+    return '沙洲上有几丛草，有点虫子，吃个半饱。';
+  }
+}
+
+const get = (o, k) => (o[k] || 0);
+const other = (a, b, p) => (p === a ? b : a);
+function hungry(s) { return s === '薄' ? '没吃饱' : '落不下'; }
+
+function theyPick(a, b, y, mem, yourLand, looked, gunYear, rest) {
+  const fav = (get(yourLand, b) > get(yourLand, a)) ? b : a;   // 一样多时挑前一处
+  const oth = other(a, b, fav);
+  const dodge = [a, b].filter(p => rest && gunYear[p] === y - 1);
+  const dodged = dodge.length ? dodge[0] : null;
+  if (looked >= 2) {
+    const feared = [a, b].filter(p => get(mem, p) > 0 && !dodge.includes(p));
+    if (feared.length) return [feared[0], '派', dodged];
+    return [dodge.includes(fav) ? oth : fav, '派', dodged];
+  }
+  let place;
+  if (get(mem, fav) > 0 && get(mem, oth) === 0) place = oth;
+  else if (get(mem, fav) > 0 && get(mem, oth) > 0) place = mem[fav] <= mem[oth] ? fav : oth;
+  else place = fav;
+  if (dodge.includes(place)) place = other(a, b, place);
+  return [place, '落', dodged];
+}
+
+function theyFly(y, k, a, b, st, say) {
+  const [place, how, dodged] = theyPick(a, b, y, st.mem, st.yourLand, st.looked, st.gunYear, st.rest);
+  let prefix = '';
+  if (dodged) { say(`领头的从${dodged}上头飞过去，往下看了一眼，没落。`); prefix = `飞过${dodged}没落，`; }
+  else if (st.gunYear[place] === y - 1) prefix = `（去年${place}有枪）`;
+  const mem = st.mem, ev = st.ev;
+  const oth = other(a, b, place);
+  const s = look(place, y);
+  if (how === '落') {
+    if (get(mem, place) > 0) say(`领头的往${place}落，后头几只叫了两声，落得慢。`);
+    say(landWords(place, y, s));
+    if (s === '枪') {
+      const n = Math.min(2, st.small); st.small -= n;
+      say(`打下来${n}只。一群连夜飞走。`);
+      mem[place] = get(mem, place) + 1; st.gunYear[place] = y; st.tired = true;
+      ev.push(`${place}挨了枪，掉了${n}只`);
+    } else if (s === '薄' || s === '淹') {
+      if (st.tired && st.small > 0) { st.small -= 1; ev.push(`${place}没吃饱，最小的掉队`); }
+      else ev.push(`${place}${hungry(s)}`);
+      st.tired = true;
+    } else ev.push(`${place}${s === '好' ? '吃饱' : '半饱'}`);
+  } else {
+    say(`一只离了队，往${place}飞下去，一群在高处盘着等。`);
+    if (s === '枪') {
+      say(landWords(place, y, s));
+      if (rng(y * 31 + k)() < 0.5 && st.small > 0) { st.small -= 1; say('它没飞回来。'); ev.push(`派一只看${place}，没回来，去了${oth}`); }
+      else { say('它冲上来，一群掉头。'); ev.push(`看${place}有枪，去了${oth}`); }
+      mem[place] = get(mem, place) + 1; st.gunYear[place] = y;
+      say(`一群飞到${oth}。` + landWords(oth, y, look(oth, y)));
+    } else {
+      mem[place] = 0;
+      if (s === '淹') {
+        say(`它在${place}上头兜了一圈，` + landWords(place, y, s));
+        say(`一群飞到${oth}。` + landWords(oth, y, look(oth, y)));
+        ev.push(`看了${place}，水漫了，去了${oth}`);
+      } else {
+        say(`它在${place}落了脚，仰头叫了一声。一群下来了。`);
+        say(landWords(place, y, s));
+        ev.push(`看了${place}，没事，落了`);
+      }
+    }
+    st.tired = true;
+  }
+  if (prefix && ev.length) ev[ev.length - 1] = prefix + ev[ev.length - 1];
+  say('');
+}
+
+// 跑一遍：返回 {lines, ask: [动作...] 或 null, table: [...] 或 null}
+function play(acts) {
+  const lines = [];
+  const say = (t, cls) => lines.push([t, cls || '']);
+  const rnd = rng(7);
+  let big = 2, small = 5;
+  const mem = {}, yourLand = {}, gunYear = {};
+  let looked = 0, dodgeN = 0, backN = 0;
+  const table = [];
+  let youAlive = true, mateAlive = true, i = 0;
+  say('你是一只老雁，领着一群往南飞，一年一回。');
+  say('跟着你的：你的伴，还有这几年孵的小的。');
+  say('你翅膀根上的旧伤一年比一年疼，大概飞不了几个秋天了。');
+  say('往南两程，每程歇一夜。');
+  const restNow = () => !(backN > dodgeN);
+
+  function finishTable() {
+    say(''); say('九年过完了。', 'head');
+    return { lines, ask: null, table };
+  }
+  function theyRest(fromYear) {
+    for (let y = fromYear; y <= ALL_YEARS; y++) {
+      if (big + small <= 0) break;
+      say(`第 ${y} 年秋天（你不在了），一群 ${big + small} 只`, 'head');
+      const st = { big, small, mem, tired: false, ev: [], yourLand, looked, gunYear, rest: restNow() };
+      LEGS.forEach(([a, b], k) => theyFly(y, k, a, b, st, say));
+      small = st.small + 2 - (st.tired ? 1 : 0);
+      table.push([y, st.ev.join('；'), big + small, true]);
+    }
+    return finishTable();
+  }
+
+  for (let y = 1; y <= ALL_YEARS; y++) {
+    const selfGo = y > YOUR_YEARS;
+    if (selfGo && y === YOUR_YEARS + 1) {
+      say(''); say('开春，你没再飞起来。', 'head'); say('这以后的秋天，它们自己走。');
+    }
+    if (small + big <= 0) break;
+    say(selfGo ? `第 ${y} 年秋天（你不在了），一群 ${big + small} 只` : `第 ${y} 年秋天，一群 ${big + small} 只`, 'head');
+    let tired = false;
+    const ev = [];
+    for (let k = 0; k < LEGS.length; k++) {
+      const [a, b] = LEGS[k];
+      let place, how, dodged = null, prefix = '';
+      if (!selfGo) {
+        if (i >= acts.length) {
+          say(`${LEG_NAME[k]}，底下是${a}和${b}。`);
+          return { lines, ask: [`落${a}`, `落${b}`, `派小的看${a}`, `派小的看${b}`, `自己看${a}`, `自己看${b}`], table: null };
+        }
+        const act = acts[i++];
+        say('→ ' + act, 'mine');
+        if (act.startsWith('落')) { how = '落'; place = act.slice(1); }
+        else if (act.startsWith('派小的看')) { how = '派'; place = act.slice(4); }
+        else { how = '自己'; place = act.slice(3); }
+        for (const p of [a, b]) {
+          if (gunYear[p] === y - 1) {
+            if (place === p) { backN++; prefix = `（去年${p}有枪）`; }
+            else { dodgeN++; prefix = `飞过${p}没落，`; say(`你从${p}上头飞过去，往下看了一眼，没落。`); }
+          }
+        }
+      } else {
+        [place, how, dodged] = theyPick(a, b, y, mem, yourLand, looked, gunYear, restNow());
+        if (dodged) { say(`领头的从${dodged}上头飞过去，往下看了一眼，没落。`); prefix = `飞过${dodged}没落，`; }
+        else if (gunYear[place] === y - 1) prefix = `（去年${place}有枪）`;
+      }
+      let oth = other(a, b, place);
+      const s = look(place, y);
+      if (how === '落') {
+        if (get(mem, place) > 0) say(!selfGo ? `你往${place}落，后头的小的叫了两声，落得比你慢。` : `领头的往${place}落，后头几只叫了两声，落得慢。`);
+        if (s === '枪') {
+          say(landWords(place, y, s));
+          const drop = y >= 3 ? 2 : 1;
+          const lost = [];
+          for (let d = 0; d < drop; d++) {
+            if (small + big <= 0) break;
+            if (!selfGo && youAlive && rnd() < 0.15) { youAlive = false; big--; lost.push('你'); }
+            else if (mateAlive && rnd() < 0.15) { mateAlive = false; big--; lost.push('你的伴'); }
+            else if (small > 0) { small--; lost.push('一只小的'); }
+          }
+          say('打下来：' + lost.join('、') + '。一群连夜飞走，没歇。');
+          mem[place] = get(mem, place) + 1; gunYear[place] = y;
+          tired = true;
+          ev.push(`${place}挨了枪，掉了${lost.join('、')}`);
+          if (lost.includes('你')) { say('你掉在苇子里，再没起来。'); youAlive = false; }
+        } else {
+          say(landWords(place, y, s));
+          if (s === '薄' || s === '淹') {
+            if (tired && small > 0) {
+              small--;
+              say('最小的那只跟不上了，落在后头，没再追上来。');
+              ev.push(`${place}${hungry(s)}，最小的掉队`);
+            } else ev.push(`${place}${hungry(s)}`);
+            tired = true;
+          } else ev.push(`${place}${s === '好' ? '吃饱' : '半饱'}`);
+          if (s === '淹') say(`只好接着飞到${oth}。` + landWords(oth, y, look(oth, y)));
+        }
+        if (!selfGo) { const at = s === '淹' ? oth : place; yourLand[at] = get(yourLand, at) + (look(at, y) === '好' ? 2 : 1); }
+      } else {
+        const who = how === '自己' ? '你' : (!selfGo ? '头一只小的' : '一只');
+        if (!selfGo) {
+          looked++;
+          if (how === '自己') say(`你让一群在高处盘着，自己往${place}低低地兜了一圈。`);
+          else say(`你叫了一声，头一只小的离了队，往${place}飞下去。一群在高处盘着等。`);
+        } else say(`一只离了队，往${place}飞下去，一群在高处盘着等。`);
+        if (s === '枪') {
+          say(landWords(place, y, s));
+          if (rnd() < 0.5) {
+            if (how === '自己') { youAlive = false; big--; say('你没飞回来。'); ev.push(`你去看${place}，挨了枪`); }
+            else { if (small > 0) small--; say('它没飞回来。'); ev.push(`派${who}看${place}，没回来`); }
+          } else {
+            say(`${how === '自己' ? '你' : '它'}拍着翅膀冲上来，一群掉头。`);
+            ev.push(`看${place}有枪，掉头`);
+          }
+          mem[place] = get(mem, place) + 1; gunYear[place] = y;
+          const s2 = look(oth, y);
+          say(`一群飞到${oth}。` + landWords(oth, y, s2));
+          ev[ev.length - 1] += `，去了${oth}`;
+          if ((s2 === '薄' || s2 === '淹') && tired && small > 0) {
+            small--; say('最小的那只跟不上了，落在后头，没再追上来。'); ev[ev.length - 1] += '，最小的掉队';
+          }
+          if (!selfGo) yourLand[oth] = get(yourLand, oth) + (s2 === '好' ? 2 : 1);
+        } else {
+          if (get(mem, place) > 0) mem[place] = 0;
+          if (s === '淹') {
+            say(`${how === '自己' ? '你' : '它'}在${place}上头兜了一圈，` + landWords(place, y, s));
+            say(`一群飞到${oth}。` + landWords(oth, y, look(oth, y)));
+            ev.push(`看了${place}，水漫了，去了${oth}`);
+            place = oth;
+          } else {
+            say(`${how === '自己' ? '你' : '它'}在${place}落了脚，仰头叫了一声。一群下来了。`);
+            say(landWords(place, y, s));
+            ev.push(`看了${place}，没事，落了`);
+          }
+          if ((s === '薄' || s === '淹') && tired && small > 0) {
+            small--; say('最小的那只跟不上了，落在后头，没再追上来。'); ev[ev.length - 1] += '，最小的掉队';
+          }
+          if (!selfGo) yourLand[place] = get(yourLand, place) + (look(place, y) === '好' ? 2 : 1);
+        }
+        tired = true;
+      }
+      if (prefix && ev.length) ev[ev.length - 1] = prefix + ev[ev.length - 1];
+      if (!youAlive && !selfGo) {
+        if (k + 1 < LEGS.length) {
+          say('');
+          const st = { big, small, mem, tired, ev, yourLand, looked, gunYear, rest: restNow() };
+          for (let k2 = k + 1; k2 < LEGS.length; k2++) {
+            say(`${LEG_NAME[k2]}，你不在了，它们自己飞。`);
+            theyFly(y, k2, LEGS[k2][0], LEGS[k2][1], st, say);
+          }
+          big = st.big; small = st.small; tired = st.tired;
+        }
+        break;
+      }
+      say('', 'gap');
+    }
+    // 开春
+    let hatch = (mateAlive || selfGo) ? 2 : 0;
+    if (tired) hatch -= 1;
+    if (selfGo) hatch = 2 - (tired ? 1 : 0);
+    small += Math.max(0, hatch);
+    table.push([y, ev.join('；'), big + small, selfGo]);
+    if (!selfGo && !youAlive) {
+      say(''); say('你不在了。这以后的秋天，它们自己走。', 'head');
+      return theyRest(y + 1);
+    }
+    say(!selfGo ? `开春回到北边，孵了${Math.max(0, hatch)}只。` : `开春孵了${Math.max(0, hatch)}只。`);
+  }
+  return finishTable();
+}
+
+let acts = [];
+function render() {
+  const r = play(acts);
+  const log = document.getElementById('log');
+  log.innerHTML = '';
+  for (const [t, cls] of r.lines) {
+    const p = document.createElement('p');
+    p.textContent = t;
+    if (cls) p.className = cls;
+    log.appendChild(p);
+  }
+  const tb = document.getElementById('table');
+  tb.innerHTML = '';
+  if (r.table) {
+    const t = document.createElement('table');
+    t.innerHTML = '<tr><th>年</th><th>谁领着</th><th>这一年</th><th>一群剩几只</th></tr>';
+    for (const [y, e, n, they] of r.table) {
+      const tr = document.createElement('tr');
+      if (they) tr.className = 'they';
+      for (const [v, c] of [[y, 'n'], [they ? '它们自己' : '你', ''], [e, ''], [n, 'n']]) {
+        const td = document.createElement('td'); td.textContent = v; if (c) td.className = c; tr.appendChild(td);
+      }
+      t.appendChild(tr);
+    }
+    tb.appendChild(t);
+  }
+  const box = document.getElementById('acts');
+  box.innerHTML = '';
+  if (r.ask) {
+    for (const a of r.ask) {
+      const bt = document.createElement('button');
+      bt.textContent = a;
+      bt.onclick = () => { acts.push(a); render(); };
+      box.appendChild(bt);
+    }
+    window.scrollTo(0, document.body.scrollHeight);
+  } else {
+    const bt = document.createElement('button');
+    bt.textContent = '再来一局';
+    bt.onclick = () => { acts = []; render(); window.scrollTo(0, 0); };
+    box.appendChild(bt);
+  }
+}
+if (typeof document !== 'undefined') render();
+if (typeof module !== 'undefined') module.exports = { play };
+</script>
+</body>
+</html>
